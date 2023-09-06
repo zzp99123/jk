@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  #代表webook本体
+  name: webook-zzp
+  #规则说明
+spec:
+  #selector 里面筛选出来的 Pod 做负载均衡
+  type: LoadBalancer
+  selector:
+    app: webook-zzp
+  ports:
+    - port: 82
+      name: http
+      protocol: TCP
+      targetPort: 8081

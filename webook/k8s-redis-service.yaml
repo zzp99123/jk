@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webook-live-redis
+spec:
+  selector:
+    app: webook-live-redis
+  ports:
+    - protocol: TCP
+      port: 12345
+      targetPort: 6380
+      nodePort: 30005
+  type: NodePort
+
+  

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webook-live-mysql
+  labels:
+    app: webook-live-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webook-live-mysql
+  template:
+    metadata:
+      name: webook-live-mysql
+      labels:
+        app: webook-live-mysql
+    spec:
+      containers:
+        - name: webook-live-mysql
+          image: mysql:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: root
+          imagePullPolicy: IfNotPresent
+#         配置持久化卷 如果你删了webook-live-mysql在重新建webook依旧没有 所以才需要配置持久化卷
+          volumeMounts:
+#           对应mysql存储的位置
+            - mountPath: /var/lib/mysql
+#           pod里面有许多的volumes，我用的是mysql-stroage这个
+#           这个volumeMounts的name要跟volumes的name想匹配
+              name: mysql-stroage
+          ports:
+            - containerPort: 3308
+#        - name: webook-live-hadoop
+      restartPolicy: Always
+      volumes:
+        - name: mysql-stroage
+          persistentVolumeClaim:
+            claimName: webook-live-mysql-claim
+
+

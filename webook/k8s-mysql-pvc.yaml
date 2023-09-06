@@ -1,0 +1,15 @@
+#我要啥
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: webook-live-mysql-claim
+spec:
+# 我们自己定义的
+  storageClassName: candy
+  accessModes:
+# 一个人？一个线程？还是一个POD？还是一个数据库用户？读写
+    - ReadWriteOnce
+  resources:
+    requests:
+# 1GB
+      storage: 1Gi

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webook-zzp
+#  specification 规格说明
+spec:
+  #  副本数量
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webook-zzp
+  #      template 描述的是你的 POD 是什么样的
+  template:
+    metadata:
+      labels:
+        app: webook-zzp
+    #    POD 的具体信息
+    spec:
+      containers:
+        - name: webook-zzp
+          image: flycash/webook-zzp:v0.0.1
+          ports:
+            - containerPort: 8081
