@@ -17,23 +17,30 @@ var (
 	bizLogin  = "login"
 )
 
+//var _ handler = &UserHandler{}
+//
+//// 这个更优雅
+//var _ handler = (*UserHandler)(nil)
+
 type UserHandler struct {
-	svc         *service.ServiceUser
-	emaileExp   *regexp.Regexp
+	svc         service.UserServiceIF
+	svcCode     service.CodeServiceIF
+	emailExp    *regexp.Regexp
 	passwordExp *regexp.Regexp
 }
 
-func NewUserHandle(svc *service.ServiceUser) *UserHandler {
+func NewUserHandle(svc service.UserServiceIF, svcCode service.CodeServiceIF) *UserHandler {
 	const (
 		emailRegexPattern = "^\\w+([-+.]\\w+)*@\\w+([-.]\\w+)*\\.\\w+([-.]\\w+)*$"
 		// 和上面比起来，用 ` 看起来就比较清爽
 		passwordRegexPattern = `^(?=.*[A-Za-z])(?=.*\d)(?=.*[$@$!%*#?&])[A-Za-z\d$@$!%*#?&]{8,}$`
 	)
-	emaileExp := regexp.MustCompile(emailRegexPattern, regexp.None)
+	emailExp := regexp.MustCompile(emailRegexPattern, regexp.None)
 	passwordExp := regexp.MustCompile(passwordRegexPattern, regexp.None)
 	return &UserHandler{
 		svc,
-		emaileExp,
+		svcCode,
+		emailExp,
 		passwordExp,
 	}
 
@@ -45,8 +52,91 @@ func (u *UserHandler) RegisterRouter(server *gin.Engine) {
 	server.POST("/users/login", u.LoginJwt)
 	server.POST("/users/edit", u.Edit)
 	server.GET("/users/profile", u.Profile)
+	server.POST("/users/login_sms/code/send", u.SendLoginSMSCode)
+	server.POST("/users/login_sms", u.LoginSMS)
 }
 
+// 发送
+func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+	}
+	var r Req
+	err := ctx.Bind(&r)
+	if err != nil {
+		return
+	}
+	if r.Phone == "" {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 4,
+			Msg:  "手机号为空",
+		})
+		return
+	}
+	err = u.svcCode.Set(ctx, bizLogin, r.Phone)
+	switch err {
+	case nil:
+		ctx.JSON(http.StatusOK, Result{
+			Msg: "发送成功",
+		})
+	case service.ErrCodeSendTooMany:
+		ctx.JSON(http.StatusOK, Result{
+			Msg: "发送太频繁，请稍后再试",
+		})
+	default:
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "系统错误",
+		})
+	}
+}
+
+// 验证码验证
+func (u *UserHandler) LoginSMS(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+		Code  string `json:"code"`
+	}
+	var r Req
+	if err := ctx.Bind(&r); err != nil {
+		return
+	}
+	ok, err := u.svcCode.Verify(ctx, bizLogin, r.Phone, r.Code)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "系统错误",
+		})
+		return
+	}
+	if !ok {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 4,
+			Msg:  "验证码有误",
+		})
+		return
+	}
+	//你如果没注册过 直接先给你注册然后在登录 如果注册过直接登录
+	res, err := u.svc.FindOrCreate(ctx, r.Phone)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "系统错误",
+		})
+		return
+	}
+	err = u.setJWTToken(ctx, res.Id)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "系统错误",
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "验证码校验通过",
+	})
+}
 func (u *UserHandler) SignUp(ctx *gin.Context) {
 	//ctx.String(http.StatusOK, "123")
 	type SignUpReq struct {
@@ -62,26 +152,17 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 	}
 	//这种写法针对简单的正则表达式
 	//ok, err := regexp.Match(emailRegexPattern, []byte(s.Email))
-	ok, err := u.emaileExp.MatchString(s.Email)
+	ok, err := u.emailExp.MatchString(s.Email)
 	if err != nil {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 5,
-			Msg:  "系统错误",
-		})
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 	if !ok {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "邮箱不正确",
-		})
+		ctx.String(http.StatusOK, "你的邮箱格式不对")
 		return
 	}
 	if s.Password != s.ConfirmPassword {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "密码不一致",
-		})
+		ctx.String(http.StatusOK, "两次输入的密码不一致")
 		return
 	}
 	ok, err = u.passwordExp.MatchString(s.Password)
@@ -93,34 +174,25 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 		return
 	}
 	if !ok {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "密码不正确",
-		})
+		ctx.String(http.StatusOK, "密码必须大于8位，包含数字、特殊字符")
 		return
 	}
 	err = u.svc.SignUp(ctx, domain.User{
 		Email:    s.Email,
 		Password: s.Password,
 	})
-	if err == service.ErruserDuplicateEmail {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "重复邮箱，请换个邮箱",
-		})
+	if err == service.ErrUserDuplicateEmail {
+		ctx.String(http.StatusOK, "邮箱冲突")
 		return
 	}
 	if err != nil {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 5,
-			Msg:  "服务器异常，注册失败",
-		})
+		ctx.String(http.StatusOK, "系统异常")
 		return
 	}
-	ctx.JSON(http.StatusOK, Result{
-		Msg: "注册成功",
-	})
-	fmt.Printf("%v", s)
+	//ctx.JSON(http.StatusOK, Result{
+	//	Msg: "注册成功",
+	//})
+	ctx.String(http.StatusOK, "注册成功")
 }
 
 // 登录session登录方式
@@ -135,18 +207,12 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 		return
 	}
 	ok, err := u.svc.Login(ctx, l.Email, l.Password)
-	if err == service.ErrInvaildUserOrPasswod {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "用户名或密码不正确",
-		})
+	if err == service.ErrInvaildUserOrPassword {
+		ctx.String(http.StatusOK, "用户名或密码不对")
 		return
 	}
 	if err != nil {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 5,
-			Msg:  "系统错误",
-		})
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 	//登录成功以后需要检验登录
@@ -163,9 +229,7 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 	})
 	//sess的机制必须执行
 	sess.Save()
-	ctx.JSON(http.StatusOK, Result{
-		Msg: "登录成功",
-	})
+	ctx.String(http.StatusOK, "登录成功")
 }
 
 // jwt方式登录
@@ -180,28 +244,22 @@ func (u *UserHandler) LoginJwt(ctx *gin.Context) {
 		return
 	}
 	ok, err := u.svc.Login(ctx, l.Email, l.Password)
-	if err == service.ErrInvaildUserOrPasswod {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 4,
-			Msg:  "用户名或密码不正确",
-		})
+	if err == service.ErrInvaildUserOrPassword {
+		ctx.String(http.StatusOK, "用户名或密码不对")
 		return
 	}
 	if err != nil {
-		ctx.JSON(http.StatusOK, Result{
-			Code: 5,
-			Msg:  "系统错误",
-		})
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 	//创建一个精度512位的token
 	if err = u.setJWTToken(ctx, ok.Id); err != nil {
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 	fmt.Println("123", ok)
-	ctx.JSON(http.StatusOK, Result{
-		Msg: "登录成功",
-	})
+	ctx.String(http.StatusOK, "登录成功")
+	return
 }
 
 func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {

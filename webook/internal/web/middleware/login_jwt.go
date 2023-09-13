@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"encoding/gob"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
@@ -39,7 +38,7 @@ func (l *LoginJwtMiddleBuild) Build() gin.HandlerFunc {
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		fmt.Println("11111111111111111111", tokenHeader)
+		//fmt.Println("11111111111111111111", tokenHeader)
 		//如果登录过的花 先切割
 		segs := strings.Split(tokenHeader, " ")
 		if len(segs) > 2 {
@@ -48,12 +47,12 @@ func (l *LoginJwtMiddleBuild) Build() gin.HandlerFunc {
 			return
 		}
 		tokenstr := segs[1]
-		fmt.Println("222222222222222222222222", tokenstr)
+		//fmt.Println("222222222222222222222222", tokenstr)
 		token, err := jwt.Parse(tokenstr, func(token *jwt.Token) (interface{}, error) {
 
 			return []byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0"), nil
 		})
-		fmt.Println("3333333333333333333333", token)
+		//fmt.Println("3333333333333333333333", token)
 		if err != nil {
 			//没人登录
 			ctx.AbortWithStatus(http.StatusUnauthorized)
