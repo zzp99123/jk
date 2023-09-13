@@ -6,7 +6,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"goFoundation/webook/internal/web"
 	"goFoundation/webook/internal/web/middleware"
-	"goFoundation/webook/pkg/ginx/middleware/ratelimit"
 	"strings"
 	"time"
 )
@@ -28,7 +27,7 @@ func InitMiddlewares(rdb redis.Cmdable) []gin.HandlerFunc {
 			LoginPath("/users/login_sms/code/send").
 			LoginPath("/users/login_sms").
 			Build(),
-		ratelimit.NewBuilder(rdb, time.Second, 100).Build(),
+		//ratelimit.NewBuilder(rdb, time.Second, 100).Build(),
 	}
 }
 

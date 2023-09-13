@@ -69,7 +69,7 @@ func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
 	if r.Phone == "" {
 		ctx.JSON(http.StatusOK, Result{
 			Code: 4,
-			Msg:  "手机号为空",
+			Msg:  "输入有误",
 		})
 		return
 	}
