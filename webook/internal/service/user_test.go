@@ -7,6 +7,7 @@ import (
 	"goFoundation/webook/internal/domain"
 	"goFoundation/webook/internal/repository"
 	repomocks "goFoundation/webook/internal/repository/mocks"
+	"goFoundation/webook/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ func Test_userService_Login(t *testing.T) {
 	now := time.Now()
 	testCases := []struct {
 		name     string
-		mock     func(curl *gomock.Controller) repository.UserRepositoryIF
+		mock     func(curl *gomock.Controller) repository.UserRepository
 		email    string
 		password string
 		wantUser domain.User
@@ -24,7 +25,7 @@ func Test_userService_Login(t *testing.T) {
 	}{
 		{
 			name: "登录成功",
-			mock: func(curl *gomock.Controller) repository.UserRepositoryIF {
+			mock: func(curl *gomock.Controller) repository.UserRepository {
 				r := repomocks.NewMockUserRepositoryIF(curl)
 				r.EXPECT().FindByEmail(gomock.Any(), "1234@qq.com").Return(domain.User{
 					Email: "1234@qq.com",
@@ -48,7 +49,7 @@ func Test_userService_Login(t *testing.T) {
 		},
 		{
 			name: "用户没找到",
-			mock: func(curl *gomock.Controller) repository.UserRepositoryIF {
+			mock: func(curl *gomock.Controller) repository.UserRepository {
 				r := repomocks.NewMockUserRepositoryIF(curl)
 				r.EXPECT().FindByEmail(gomock.Any(), "123@qq.com").Return(domain.User{}, repository.ErrNotFound)
 				return r
@@ -59,7 +60,7 @@ func Test_userService_Login(t *testing.T) {
 		},
 		{
 			name: "密码错误",
-			mock: func(curl *gomock.Controller) repository.UserRepositoryIF {
+			mock: func(curl *gomock.Controller) repository.UserRepository {
 				r := repomocks.NewMockUserRepositoryIF(curl)
 				r.EXPECT().FindByEmail(gomock.Any(), "1234@qq.com").Return(domain.User{
 					Email: "1234@qq.com",
@@ -81,7 +82,7 @@ func Test_userService_Login(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			curl := gomock.NewController(t)
 			defer curl.Finish()
-			svc := NewUserService(tc.mock(curl))
+			svc := NewUserService(tc.mock(curl), &logger.NopLogger{})
 			u, err := svc.Login(context.Background(), tc.email, tc.password)
 			assert.Equal(t, tc.wantErr, err)
 			assert.Equal(t, tc.wantUser, u)

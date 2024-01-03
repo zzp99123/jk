@@ -80,6 +80,21 @@ func (mr *MockUserDaoIFMockRecorder) FindByPhone(ctx, phone interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByPhone", reflect.TypeOf((*MockUserDaoIF)(nil).FindByPhone), ctx, phone)
 }
 
+// FindByWechat mocks base method.
+func (m *MockUserDaoIF) FindByWechat(ctx context.Context, openId string) (dao.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByWechat", ctx, openId)
+	ret0, _ := ret[0].(dao.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByWechat indicates an expected call of FindByWechat.
+func (mr *MockUserDaoIFMockRecorder) FindByWechat(ctx, openId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByWechat", reflect.TypeOf((*MockUserDaoIF)(nil).FindByWechat), ctx, openId)
+}
+
 // Insert mocks base method.
 func (m *MockUserDaoIF) Insert(ctx context.Context, u dao.User) error {
 	m.ctrl.T.Helper()

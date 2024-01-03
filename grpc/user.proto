@@ -1,0 +1,38 @@
+syntax = "proto3";
+option go_package= "goFoundation/grpc";
+//定义 message
+message User {
+  int64 id = 1;
+  string name = 2;
+  //可以不按照顺序 不能删 某一个字段以后不用了也不可以删，如果删了的话这个序号不可以给别人用
+  map<string,string> attributes =5; //map
+  optional int32 age = 7; //是指可选的字段，现在已经很少用了 很少用
+  repeated string Nickname = 8;//使用的是 repeat，这个东西也叫做 field label
+  Address address = 10;
+  oneof contacts { //oneof就是标记多个字段中只有一个字段有值。
+    string phone =11;
+    string email =12;
+  }
+
+  Gender gender = 13;  //枚举类型
+}
+message Address{
+
+}
+enum Gender{
+  Unknown = 0;
+  Female = 1;
+  Male = 2;
+}
+//定义 Service
+service UserService {
+  rpc GetById (GetByIdRequest ) returns(GetByIdResponse);
+  rpc GetByIdV1(GetByIdRequest) returns (GetByIdResponse);
+}
+message GetByIdRequest {
+  int64 id = 1;
+}
+message GetByIdResponse {
+  User user = 1;
+}
+// windows写法 protoc `--go_out=. `--go_opt=paths=source_relative  `--go-grpc_out=. `--go-grpc_opt=paths=source_relative user.proto

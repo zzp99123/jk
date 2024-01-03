@@ -9,7 +9,7 @@ import (
 	domain "goFoundation/webook/internal/domain"
 	reflect "reflect"
 
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockUserServiceIF is a mock of UserServiceIF interface.
@@ -62,6 +62,21 @@ func (m *MockUserServiceIF) FindOrCreate(ctx context.Context, phone string) (dom
 func (mr *MockUserServiceIFMockRecorder) FindOrCreate(ctx, phone interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrCreate", reflect.TypeOf((*MockUserServiceIF)(nil).FindOrCreate), ctx, phone)
+}
+
+// FindOrCreateByWechat mocks base method.
+func (m *MockUserServiceIF) FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrCreateByWechat", ctx, info)
+	ret0, _ := ret[0].(domain.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrCreateByWechat indicates an expected call of FindOrCreateByWechat.
+func (mr *MockUserServiceIFMockRecorder) FindOrCreateByWechat(ctx, info interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrCreateByWechat", reflect.TypeOf((*MockUserServiceIF)(nil).FindOrCreateByWechat), ctx, info)
 }
 
 // Login mocks base method.

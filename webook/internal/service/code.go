@@ -15,16 +15,16 @@ var (
 	ErrCodeVerifyTooManyTimes = repository.ErrCodeVerifyTooManyTimes
 )
 
-type CodeServiceIF interface {
+type CodeService interface {
 	Set(ctx context.Context, biz, phone string) error
 	Verify(ctx context.Context, biz, phone, expectedCode string) (bool, error)
 }
 type codeService struct {
-	r      repository.CodeRepositoryIF
+	r      repository.CodeRepository
 	smsSvc sms.Service
 }
 
-func NewServiceCode(r repository.CodeRepositoryIF, smsSvc sms.Service) CodeServiceIF {
+func NewServiceCode(r repository.CodeRepository, smsSvc sms.Service) CodeService {
 	return &codeService{
 		r:      r,
 		smsSvc: smsSvc,

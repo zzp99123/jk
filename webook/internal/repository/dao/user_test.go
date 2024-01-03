@@ -67,7 +67,7 @@ func TestGORMUserDAO_Insert(t *testing.T) {
 			})
 			//初始化db不能出错 所以这里要断言必须为nil
 			assert.NoError(t, err)
-			dao := NewUserService(db)
+			dao := NewUserDao(db)
 			err = dao.Insert(v.ctx, v.u)
 			assert.Equal(t, v.wantErr, err)
 		})

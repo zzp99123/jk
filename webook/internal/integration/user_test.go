@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"goFoundation/webook/internal/integration/startup"
 	"goFoundation/webook/internal/web"
 	"goFoundation/webook/ioc"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestUserHandler_e2e_SendLoginSMSCode(t *testing.T) {
-	server := InitWebServer()
+	server := startup.InitWebServer()
 	rdb := ioc.InitRedis()
 	testCases := []struct {
 		name string

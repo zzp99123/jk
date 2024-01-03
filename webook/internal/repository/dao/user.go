@@ -14,19 +14,23 @@ var (
 	ErrNotFound           = gorm.ErrRecordNotFound
 )
 
-type UserDaoIF interface {
+// ErrDataNotFound 通用的数据没找到
+var ErrDataNotFound = gorm.ErrRecordNotFound
+
+type UserDao interface {
 	Insert(ctx context.Context, u User) error
 	FindByEmail(ctx context.Context, e string) (User, error)
 	FindByPhone(ctx context.Context, phone string) (User, error)
 	FindById(ctx context.Context, id int64) (User, error)
 	Update(ctx context.Context, u User) error
+	FindByWechat(ctx context.Context, openId string) (User, error)
 }
 
 type userDao struct {
 	db *gorm.DB
 }
 
-func NewUserService(db *gorm.DB) UserDaoIF {
+func NewUserDao(db *gorm.DB) UserDao {
 	return &userDao{
 		db: db,
 	}
@@ -63,6 +67,13 @@ func (d *userDao) FindByPhone(ctx context.Context, phone string) (User, error) {
 	return u, err
 }
 
+// 微信扫码
+func (d *userDao) FindByWechat(ctx context.Context, openId string) (User, error) {
+	var u User
+	err := d.db.WithContext(ctx).Where("wechat_open_id = ?", openId).First(&u).Error
+	return u, err
+}
+
 // 查找id
 func (d *userDao) FindById(ctx context.Context, id int64) (User, error) {
 	var u User
@@ -84,7 +95,11 @@ type User struct {
 	//创建时间
 	Ctime int64
 	//更新时间
-	UTime           int64
+	UTime int64
+	//扫码登录的校验用的值
+	WechatOpenId  sql.NullString `gorm:"unique"`
+	WechatUnionId sql.NullString `gorm:"unique"`
+
 	Birthday        sql.NullInt64  //生日
 	PersonalProfile sql.NullString `gorm:"type=varchar(1024)"` //个人简介
 	Nickname        sql.NullString //昵称

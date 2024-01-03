@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/assert/v2"
-	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"goFoundation/webook/internal/domain"
 	"goFoundation/webook/internal/service"
 	svcmocks "goFoundation/webook/internal/service/mocks"
@@ -31,14 +31,14 @@ func TestPasswordEncrypt(t *testing.T) {
 func TestUserHandler_SignUp(t *testing.T) {
 	testCases := []struct {
 		name     string
-		mock     func(ctrl *gomock.Controller) service.UserServiceIF
+		mock     func(ctrl *gomock.Controller) service.UserService
 		reqBody  string
 		wantCode int
 		wantBody string
 	}{
 		{
 			name: "注册成功",
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				usersvc.EXPECT().SignUp(gomock.Any(), domain.User{
 					Email:    "123@qq.com",
@@ -60,7 +60,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "参数不对，bind 失败",
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				//	// 注册成功是 return nil
 				return usersvc
@@ -75,7 +75,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "邮箱格式不对",
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				return usersvc
 			},
@@ -95,7 +95,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 			//mock: func(ctrl *gomock.Controller) service.UserService {
 
 			//},
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				return usersvc
 			},
@@ -112,7 +112,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "密码格式不对",
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				return usersvc
 			},
@@ -137,7 +137,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 			//	// 注册成功是 return nil
 			//	return usersvc
 			//},
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				usersvc.EXPECT().SignUp(gomock.Any(), domain.User{
 					Email:    "123@qq.com",
@@ -159,7 +159,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 		},
 		{
 			name: "系统异常",
-			mock: func(ctrl *gomock.Controller) service.UserServiceIF {
+			mock: func(ctrl *gomock.Controller) service.UserService {
 				usersvc := svcmocks.NewMockUserServiceIF(ctrl)
 				usersvc.EXPECT().SignUp(gomock.Any(), domain.User{
 					Email:    "123@qq.com",
@@ -188,7 +188,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 			defer ctrl.Finish()
 			//初始化
 			server := gin.Default()
-			h := NewUserHandle(tc.mock(ctrl), nil)
+			h := NewUserHandle(tc.mock(ctrl), nil, nil)
 			h.RegisterRouter(server)
 
 			req, err := http.NewRequest(http.MethodPost,

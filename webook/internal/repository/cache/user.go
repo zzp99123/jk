@@ -12,7 +12,7 @@ import (
 
 var ErrKeyNotExist = redis.Nil
 
-type UsersCacheIF interface {
+type UsersCache interface {
 	Get(ctx context.Context, id int64) (domain.User, error)
 	Set(ctx context.Context, u domain.User) error
 	Id(id int64) string
@@ -23,13 +23,17 @@ type usersCache struct {
 	expiration time.Duration
 }
 
-func NewCacheUsers(client redis.Cmdable) UsersCacheIF {
+func NewUsersCache(client redis.Cmdable) UsersCache {
 	return &usersCache{
 		client,
 		time.Minute * 15,
 	}
 }
 func (c *usersCache) Get(ctx context.Context, id int64) (domain.User, error) {
+	//这种方法也是深入的监控各个方法 如果要用的话每个方法都需要写一遍
+	//ctx = context.WithValue(ctx, "biz", "user")
+	//这个是子任务的子任务的监控方法
+	//ctx = context.WithValue(ctx, "pattern", "user:info:%d")
 	key := c.Id(id)
 	res, err := c.client.Get(ctx, key).Bytes()
 	if err != nil {
@@ -41,6 +45,8 @@ func (c *usersCache) Get(ctx context.Context, id int64) (domain.User, error) {
 
 }
 func (c *usersCache) Set(ctx context.Context, u domain.User) error {
+	//ctx = context.WithValue(ctx, "biz", "user")
+	//ctx = context.WithValue(ctx, "pattern", "user:info:%d")
 	val, err := json.Marshal(u)
 	if err != nil {
 		return err

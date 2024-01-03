@@ -25,20 +25,12 @@ func (l *LoginMiddleBuild) Build() gin.HandlerFunc {
 	gob.Register(time.Now()) //一旦你处理接口，你必须首先注册你的具体类型。
 	return func(ctx *gin.Context) {
 		//登录和注册不需要校验
-		//if ctx.Request.URL.Path == "/users/signup" || ctx.Request.URL.Path == "/users/login" {
-		//	return
-		//}
 		for _, v := range l.path {
 			if ctx.Request.URL.Path == v {
 				return
 			}
 		}
 		sess := sessions.Default(ctx)
-		//已经有sessions的插件了所以这个没用
-		//if sess == nil {
-		//	ctx.AbortWithStatus(http.StatusUnauthorized)
-		//	return
-		//}
 		id := sess.Get("userId")
 		if id == nil {
 			ctx.AbortWithStatus(http.StatusUnauthorized)

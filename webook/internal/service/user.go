@@ -5,6 +5,7 @@ import (
 	"errors"
 	"goFoundation/webook/internal/domain"
 	"goFoundation/webook/internal/repository"
+	"goFoundation/webook/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -13,20 +14,23 @@ var (
 	ErrInvaildUserOrPassword = errors.New("邮箱/密码不正确")
 )
 
-type UserServiceIF interface {
+type UserService interface {
 	SignUp(ctx context.Context, u domain.User) error
 	Login(ctx context.Context, e string, p string) (domain.User, error)
 	FindOrCreate(ctx context.Context, phone string) (domain.User, error)
 	Profile(ctx context.Context, id int64) (domain.User, error)
 	Edit(ctx context.Context, user domain.User) error
+	FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error)
 }
 type userService struct {
-	r repository.UserRepositoryIF
+	r repository.UserRepository
+	l logger.LoggerV1
 }
 
-func NewUserService(r repository.UserRepositoryIF) UserServiceIF {
+func NewUserService(r repository.UserRepository, l logger.LoggerV1) UserService {
 	return &userService{
 		r: r,
+		l: l,
 	}
 }
 
@@ -71,6 +75,20 @@ func (s *userService) FindOrCreate(ctx context.Context, phone string) (domain.Us
 	err = s.r.Create(ctx, res)
 	//主从延迟
 	return s.r.FindByPhone(ctx, phone)
+}
+
+// 微信扫码注册登录
+func (s *userService) FindOrCreateByWechat(ctx context.Context, info domain.WechatInfo) (domain.User, error) {
+	//先查注没注册过
+	res, err := s.r.FindByWechat(ctx, info.OpenId)
+	if err != repository.ErrNotFound {
+		return res, err
+	}
+	//当到这一步的时候就说明没注册过 这时候就需要注册
+	err = s.r.Create(ctx, domain.User{
+		WechatInfo: info,
+	})
+	return s.r.FindByWechat(ctx, info.OpenId)
 }
 
 // 查找

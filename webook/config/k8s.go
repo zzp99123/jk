@@ -1,14 +1,14 @@
 //go:build k8s
 
-// 使用 k8s 这个编译标签
 package config
 
-var Config = config{
+var Config = WebookConfig{
 	DB: DBConfig{
-		// 本地连接
-		DSN: "root:root@tcp(webook-live-mysql:11308)/webook",
+		DSN: "root:root@tcp(webook-mysql:3308)/webook",
 	},
 	Redis: RedisConfig{
-		Addr: "webook-live-redis:12345",
+		Addr:     "webook-redis:6379",
+		Password: "",
+		DB:       1,
 	},
 }

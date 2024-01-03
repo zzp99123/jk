@@ -1,13 +1,15 @@
 package web
 
 import (
-	"fmt"
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/trace"
 	"goFoundation/webook/internal/domain"
 	"goFoundation/webook/internal/service"
+	ijwt "goFoundation/webook/internal/web/jwt"
 	"net/http"
 	"time"
 )
@@ -17,19 +19,22 @@ var (
 	bizLogin  = "login"
 )
 
+//// 确保 UserHandler 上实现了 handler 接口
 //var _ handler = &UserHandler{}
 //
 //// 这个更优雅
 //var _ handler = (*UserHandler)(nil)
 
 type UserHandler struct {
-	svc         service.UserServiceIF
-	svcCode     service.CodeServiceIF
+	svc         service.UserService
+	svcCode     service.CodeService
 	emailExp    *regexp.Regexp
 	passwordExp *regexp.Regexp
+	ijwt.Handler
+	cmd redis.Cmdable
 }
 
-func NewUserHandle(svc service.UserServiceIF, svcCode service.CodeServiceIF) *UserHandler {
+func NewUserHandle(svc service.UserService, svcCode service.CodeService, jwtHdl ijwt.Handler) *UserHandler {
 	const (
 		emailRegexPattern = "^\\w+([-+.]\\w+)*@\\w+([-.]\\w+)*\\.\\w+([-.]\\w+)*$"
 		// 和上面比起来，用 ` 看起来就比较清爽
@@ -38,10 +43,11 @@ func NewUserHandle(svc service.UserServiceIF, svcCode service.CodeServiceIF) *Us
 	emailExp := regexp.MustCompile(emailRegexPattern, regexp.None)
 	passwordExp := regexp.MustCompile(passwordRegexPattern, regexp.None)
 	return &UserHandler{
-		svc,
-		svcCode,
-		emailExp,
-		passwordExp,
+		svc:         svc,
+		svcCode:     svcCode,
+		emailExp:    emailExp,
+		passwordExp: passwordExp,
+		Handler:     jwtHdl,
 	}
 
 }
@@ -50,10 +56,60 @@ func (u *UserHandler) RegisterRouter(server *gin.Engine) {
 	server.POST("/users/signup", u.SignUp)
 	//server.POST("/users/login", u.Login)
 	server.POST("/users/login", u.LoginJwt)
-	server.POST("/users/edit", u.Edit)
-	server.GET("/users/profile", u.Profile)
+	server.POST("/users/logout", u.LogoutJWT)
+	//server.POST("/users/edit", u.Edit)
+	//server.GET("/users/profile", u.Profile)
+	server.GET("/users/profile", u.ProfileJWT)
 	server.POST("/users/login_sms/code/send", u.SendLoginSMSCode)
 	server.POST("/users/login_sms", u.LoginSMS)
+	//server.POST("/users/refer", u.ReferToken)
+	server.POST("/users/refresh_token", u.ReferToken)
+
+}
+
+// jwt退出登录
+func (u *UserHandler) LogoutJWT(ctx *gin.Context) {
+	err := u.ClearToken(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "退出登录失败",
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "退出登录OK",
+	})
+}
+
+// jwt 长短token
+func (u *UserHandler) ReferToken(ctx *gin.Context) {
+	// 只有这个接口，拿出来的才是 refresh_token，其它地方都是 access token
+	tokenStr := u.ExtractToken(ctx)
+	var r ijwt.RefClaims
+	res, err := jwt.ParseWithClaims(tokenStr, &r, func(token *jwt.Token) (interface{}, error) {
+		return ijwt.RefreshKey, nil
+	})
+	if err != nil || !res.Valid {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	err = u.CheckSession(ctx, r.Ssid)
+	if err != nil {
+		// 要么 redis 有问题，要么已经退出登录
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	//搞个新token
+	err = u.SetJWTToken(ctx, r.Uid, r.Ssid)
+	if err != nil {
+		// 要么 redis 有问题，要么已经退出登录
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "刷新成功",
+	})
 }
 
 // 发送
@@ -125,7 +181,8 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 		})
 		return
 	}
-	err = u.setJWTToken(ctx, res.Id)
+	//这里为什么要用jwt呢 就是看你注册过没
+	err = u.SetLoginToken(ctx, res.Id)
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{
 			Code: 5,
@@ -177,11 +234,14 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "密码必须大于8位，包含数字、特殊字符")
 		return
 	}
-	err = u.svc.SignUp(ctx, domain.User{
+	err = u.svc.SignUp(ctx.Request.Context(), domain.User{
 		Email:    s.Email,
 		Password: s.Password,
 	})
 	if err == service.ErrUserDuplicateEmail {
+		// 手动在业务中打点
+		span := trace.SpanFromContext(ctx.Request.Context())
+		span.AddEvent("邮件冲突")
 		ctx.String(http.StatusOK, "邮箱冲突")
 		return
 	}
@@ -252,31 +312,26 @@ func (u *UserHandler) LoginJwt(ctx *gin.Context) {
 		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
-	//创建一个精度512位的token
-	if err = u.setJWTToken(ctx, ok.Id); err != nil {
+	if err = u.SetLoginToken(ctx, ok.Id); err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
-	fmt.Println("123", ok)
 	ctx.String(http.StatusOK, "登录成功")
 	return
 }
 
-func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {
-	claims := UserClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 30)),
-		},
-		Uid:       uid,
-		UserAgent: ctx.Request.UserAgent(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0"))
-	if err != nil {
-		return err
-	}
-	ctx.Header("x-jwt-token", tokenStr)
-	return nil
+// session退出登录
+func (u *UserHandler) Logout(ctx *gin.Context) {
+	sess := sessions.Default(ctx)
+	// 我可以随便设置值了
+	// 你要放在 session 里面的值
+	sess.Options(sessions.Options{
+		//Secure: true,
+		//HttpOnly: true,
+		MaxAge: -1,
+	})
+	sess.Save()
+	ctx.String(http.StatusOK, "退出登录成功")
 }
 
 // 编辑
@@ -319,7 +374,7 @@ func (u *UserHandler) Edit(ctx *gin.Context) {
 			Msg:  "日期格式不对",
 		})
 	}
-	uc := ctx.MustGet("user").(UserClaims)
+	uc := ctx.MustGet("user").(ijwt.UserClaims)
 	err = u.svc.Edit(ctx, domain.User{
 		Id:              uc.Uid,
 		Nickname:        r.Nickname,
@@ -357,10 +412,22 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 	})
 }
 
-type UserClaims struct {
-	jwt.RegisteredClaims
-	// 声明你自己的要放进去 token 里面的数据
-	Uid int64
-	// 自己随便加
-	UserAgent string
+func (u *UserHandler) ProfileJWT(ctx *gin.Context) {
+	c, _ := ctx.Get("claims")
+	// 你可以断定，必然有 claims
+	//if !ok {
+	//	// 你可以考虑监控住这里
+	//	ctx.String(http.StatusOK, "系统错误")
+	//	return
+	//}
+	// ok 代表是不是 *UserClaims
+	claims, ok := c.(ijwt.UserClaims)
+	if !ok {
+		// 你可以考虑监控住这里
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	println(claims.Uid)
+	ctx.String(http.StatusOK, "你的 profile")
+	// 这边就是你补充 profile 的其它代码
 }

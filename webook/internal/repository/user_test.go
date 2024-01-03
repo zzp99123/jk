@@ -19,7 +19,7 @@ func TestCachedUserRepository_FindById(t *testing.T) {
 	nows := time.UnixMilli(now)
 	testCases := []struct {
 		name     string
-		mock     func(ctrl *gomock.Controller) (dao.UserDaoIF, cache.UsersCacheIF)
+		mock     func(ctrl *gomock.Controller) (dao.UserDao, cache.UsersCache)
 		ctx      context.Context
 		id       int64
 		wantUser domain.User
@@ -27,7 +27,7 @@ func TestCachedUserRepository_FindById(t *testing.T) {
 	}{
 		{
 			name: "查找成功，缓存未命中",
-			mock: func(ctrl *gomock.Controller) (dao.UserDaoIF, cache.UsersCacheIF) {
+			mock: func(ctrl *gomock.Controller) (dao.UserDao, cache.UsersCache) {
 				d := daomocks.NewMockUserDaoIF(ctrl)
 				c := cachemocks.NewMockUsersCacheIF(ctrl)
 				// int64(123) int类型需要变换int64类型
@@ -68,7 +68,7 @@ func TestCachedUserRepository_FindById(t *testing.T) {
 		},
 		{
 			name: "查找成功，缓存命中",
-			mock: func(ctrl *gomock.Controller) (dao.UserDaoIF, cache.UsersCacheIF) {
+			mock: func(ctrl *gomock.Controller) (dao.UserDao, cache.UsersCache) {
 				d := daomocks.NewMockUserDaoIF(ctrl)
 				c := cachemocks.NewMockUsersCacheIF(ctrl)
 				c.EXPECT().Get(gomock.Any(), int64(123)).Return(domain.User{
@@ -92,7 +92,7 @@ func TestCachedUserRepository_FindById(t *testing.T) {
 		},
 		{
 			name: "没找到用户",
-			mock: func(ctrl *gomock.Controller) (dao.UserDaoIF, cache.UsersCacheIF) {
+			mock: func(ctrl *gomock.Controller) (dao.UserDao, cache.UsersCache) {
 				d := daomocks.NewMockUserDaoIF(ctrl)
 				c := cachemocks.NewMockUsersCacheIF(ctrl)
 				c.EXPECT().Get(gomock.Any(), int64(123)).Return(domain.User{}, cache.ErrKeyNotExist)

@@ -14,19 +14,20 @@ var (
 	ErrNotFound           = dao.ErrNotFound
 )
 
-type UserRepositoryIF interface {
+type UserRepository interface {
 	Create(ctx context.Context, u domain.User) error
 	FindByEmail(ctx context.Context, e string) (domain.User, error)
 	FindById(ctx context.Context, id int64) (domain.User, error)
 	Update(ctx context.Context, u domain.User) error
 	FindByPhone(ctx context.Context, phone string) (domain.User, error)
+	FindByWechat(ctx context.Context, openId string) (domain.User, error)
 }
 type userRepository struct {
-	dao   dao.UserDaoIF
-	cache cache.UsersCacheIF
+	dao   dao.UserDao
+	cache cache.UsersCache
 }
 
-func NewUserService(dao dao.UserDaoIF, cache cache.UsersCacheIF) UserRepositoryIF {
+func NewUserRepository(dao dao.UserDao, cache cache.UsersCache) UserRepository {
 	return &userRepository{
 		dao:   dao,
 		cache: cache,
@@ -90,6 +91,15 @@ func (r *userRepository) FindByPhone(ctx context.Context, phone string) (domain.
 	return r.entityToDomain(ok), nil
 }
 
+// 微信扫码
+func (r *userRepository) FindByWechat(ctx context.Context, openId string) (domain.User, error) {
+	ok, err := r.dao.FindByWechat(ctx, openId)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return r.entityToDomain(ok), nil
+}
+
 // domain.user转dao
 func (r *userRepository) domainToEntity(u domain.User) dao.User {
 	return dao.User{
@@ -115,6 +125,14 @@ func (r *userRepository) domainToEntity(u domain.User) dao.User {
 			u.PersonalProfile,
 			u.PersonalProfile != "",
 		},
+		WechatOpenId: sql.NullString{
+			u.WechatInfo.OpenId,
+			u.WechatInfo.OpenId != "",
+		},
+		WechatUnionId: sql.NullString{
+			u.WechatInfo.UnionId,
+			u.WechatInfo.UnionId != "",
+		},
 	}
 }
 
@@ -133,5 +151,9 @@ func (r *userRepository) entityToDomain(u dao.User) domain.User {
 		PersonalProfile: u.PersonalProfile.String,
 		Birthday:        birthday,
 		Ctime:           time.UnixMilli(u.Ctime),
+		WechatInfo: domain.WechatInfo{
+			OpenId:  u.WechatOpenId.String,
+			UnionId: u.WechatUnionId.String,
+		},
 	}
 }

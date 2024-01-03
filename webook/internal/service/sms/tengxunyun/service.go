@@ -15,15 +15,24 @@ type Service struct {
 	signName *string
 	client   *sms.Client
 	limiter  ratelimit.Limiter
+	//vector   *prometheus.CounterVec //如果你要监控错误码 需要深入到各个细节去弄
 }
 
 func NewService(client *sms.Client, appId string,
 	signName string, limiter ratelimit.Limiter) *Service {
+	//vec := prometheus.NewCounterVec(prometheus.CounterOpts{
+	//	Namespace: "geekbang_daming",
+	//	Subsystem: "webook",
+	//	Name:      "sms_resp_code",
+	//	Help:      "统计 SMS 服务错误码",
+	//}, []string{"code"})
+	//prometheus.MustRegister(vec)
 	return &Service{
 		client:   client,
 		appId:    ekit.ToPtr[string](appId),
 		signName: ekit.ToPtr[string](signName),
 		limiter:  limiter,
+		//vector:   vec,
 	}
 }
 
@@ -32,6 +41,17 @@ func NewService(client *sms.Client, appId string,
 // biz 直接代表的就是 tplId
 func (s *Service) Send(ctx context.Context,
 	biz string, args []string, numbers ...string) error {
+	//这样写 容易屎山 并且代码沉鱼 所以可以用装饰器
+	//key := "sms:tencent"
+	//l, err := s.limiter.Limit(ctx, key)
+	//if err != nil {
+	//	//系统错误
+	//	//如果第三方很弱的话就限流  如果第三方很强的话就不限流
+	//	return fmt.Errorf("短信服务判断是否限流出现问题，%w", err)
+	//}
+	//if l {
+	//	return fmt.Errorf("触发了限流")
+	//}
 	req := sms.NewSendSmsRequest()
 	req.SmsSdkAppId = s.appId
 	req.SignName = s.signName
@@ -43,6 +63,7 @@ func (s *Service) Send(ctx context.Context,
 		return err
 	}
 	for _, status := range resp.Response.SendStatusSet {
+		//s.vector.WithLabelValues(*status.Code)
 		if status.Code == nil || *(status.Code) != "Ok" {
 			return fmt.Errorf("发送短信失败 %s, %s ", *status.Code, *status.Message)
 		}
